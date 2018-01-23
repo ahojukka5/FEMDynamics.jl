@@ -1,0 +1,3 @@
+[![Build Status](https://travis-ci.org/JuliaFEM/LinearImplicitDynamics.jl.svg?branch=master)](https://travis-ci.org/JuliaFEM/LinearImplicitDynamics)[![Coverage Status](https://coveralls.io/repos/github/JuliaFEM/LinearImplicitDynamics/badge.svg?branch=master)](https://coveralls.io/github/JuliaFEM/LinearImplicitDynamics?branch=master)[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliafem.github.io/LinearImplicitDynamics/stable)[![](https://img.shields.io/badge/docs-latest-blue.svg)](https://juliafem.github.io/LinearImplicitDynamics/latest)[![Issues](https://img.shields.io/github/issues/JuliaFEM/LinearImplicitDynamics.svg)](https://github.com/JuliaFEM/LinearImplicitDynamics/issues)
+
+A solver for linear implicit dynamics problems.
