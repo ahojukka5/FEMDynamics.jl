@@ -11,8 +11,8 @@ import FEMBase: solve!
 type LinearImplicit <: AbstractSolver
 end
 
-function solve!(solver::Solver{LinearImplicit}, time)
-    # solve everything
+function run!(solver::Solver{LinearImplicit}, time)
+    # run analysis
 end
 
 export LinearImplicit
