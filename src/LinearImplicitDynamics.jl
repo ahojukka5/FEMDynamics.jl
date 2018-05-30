@@ -8,7 +8,7 @@ using FEMBase
 
 import FEMBase: solve!
 
-type LinearImplicit <: AbstractSolver
+type LinearImplicit <: AbstractAnalysis
 end
 
 function solve!(solver::Solver{LinearImplicit}, time)
