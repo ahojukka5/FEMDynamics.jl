@@ -7,6 +7,9 @@ using JuliaFEM.Postprocess
 using Logging
 Logging.configure(level=INFO)
 add_elements! = JuliaFEM.add_elements!
+using LinearImplicitDynamics
+
+# Model construction starts
 
 datadir = Pkg.dir("LinearImplicitDynamics", "examples", "ball")
 meshfile = joinpath(datadir, "ball.med")
@@ -22,10 +25,12 @@ for (elset_name, element_ids) in mesh.element_sets
     nel = length(element_ids)
     println("Element set $elset_name contains $nel elements.")
 end
+
 for (nset_name, node_ids) in mesh.node_sets
     nno = length(node_ids)
     println("Node set $nset_name contains $nno nodes.")
 end
+
 nnodes = length(mesh.nodes)
 println("Total number of nodes in mesh: $nnodes")
 nelements = length(mesh.elements)
@@ -71,56 +76,37 @@ println("Ball mass: $m_ball")
 ball = Problem(Elasticity, "ball", 3)
 add_elements!(ball, ball_elements)
 update!(load_element, "displacement traction force z", 10e4)
-# add_elements!(ball, [load_element])
-empty!(ball.assembly)
-assemble!(ball, time)
-assemble_mass_matrix!(ball, time)
 
-K = sparse(ball.assembly.K)
-M = sparse(ball.assembly.M)
-f = sparse(ball.assembly.f)
-cfM = cholfact(M)
+# Model construction end.
 
-function model1(dx, x, p, t)
-    k = 1.0 - 2.0/5.0*t
-    #dim = get_unknown_field_dimension(ball) # = 3
-    ndofs = round(Int, length(dx)/2)
-    u = x[1:ndofs]
-    ux = round(mean(u[1:3:end]), 2)
-    uy = round(mean(u[2:3:end]), 2)
-    uz = round(mean(u[3:3:end]), 2)
-    println("$t: coords = ($ux, $uy, $uz)")
-    v = x[ndofs+1:end]
-    dx[1:ndofs] = x[ndofs+1:end]
-    f2 = copy(f)
-    #f2[3:3:end] *= k
-    #f2[3*(nid-1)+2] += 100.0
-    dx[ndofs+1:end] = cfM \ (k*f2 - K*u)
-end
+analysis = Analysis(LinearImplicit)
+analysis.properties.tspan = (0.0, 10.0)
+add_problems!(analysis, [ball])
+xdmf = Xdmf(joinpath(datadir, "ball_results"); overwrite=true)
+add_results_writer!(analysis, xdmf)
 
-using DifferentialEquations
+# Start analysis.
 
-ndofs = size(K, 1)
-u0 = zeros(ndofs)
-v0 = zeros(ndofs)
-v0[1:3:end] += 20.0
-v0[2:3:end] += 10.0
-x0 = [u0; v0]
-tspan = (0.0, 10.0)
-prob = ODEProblem(model1, x0, tspan)
-sol = solve(prob; dtmax=0.1)
+run!(analysis)
+close(xdmf.hdf) # src
+
+# Analysis ready
+
+sol = analysis.properties.sol
+
+dim = 3
+nnodes = length(mesh.nodes)
+ndofs = dim * nnodes
+
 u = hcat([x[1:ndofs] for x in sol.u]...)
 v = hcat([x[ndofs+1:end] for x in sol.u]...)
 
+tspan = analysis.properties.tspan
 t0, t1 = tspan
 nsteps = length(sol.u)
 println("Number of time steps = $nsteps")
 t = linspace(t0, t1, nsteps)
 
-dim = 3
-nnodes = length(mesh.nodes)
-# ndofs = dim * nnodes
-#
 for (time, x) in zip(t, sol.u)
     u = x[1:ndofs]
     v = x[ndofs+1:end]
@@ -146,14 +132,6 @@ println("bounding box x = ($xmin, $xmax)")
 println("bounding box y = ($ymin, $ymax)")
 println("bounding box z = ($zmin, $zmax)")
 
-step = Analysis(Nonlinear)
-add_problems!(step, [ball])
-
-xdmf = Xdmf("ball_results"; overwrite=true)
-add_results_writer!(step, xdmf)
-
 for time in linspace(t0, t1, 600)
-    JuliaFEM.write_results!(step, time)
+    JuliaFEM.write_results!(analysis, time)
 end
-
-close(xdmf.hdf)
