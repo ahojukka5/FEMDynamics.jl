@@ -6,6 +6,7 @@ module LinearImplicitDynamics
 
 using FEMBase
 using DifferentialEquations
+using JuliaFEM
 
 type LinearImplicit <: AbstractAnalysis
     tspan :: Tuple{Float64,Float64}
@@ -20,6 +21,7 @@ end
 function FEMBase.run!(analysis::Analysis{LinearImplicit})
 
     time = analysis.properties.tspan[1]
+
     assemble!(analysis, time; with_mass_matrix=true)
 
     M = SparseMatrixCOO()
@@ -80,6 +82,43 @@ function FEMBase.run!(analysis::Analysis{LinearImplicit})
     analysis.properties.sol = solve(prob; dtmax=0.1)
     #u = hcat([x[1:ndofs] for x in sol.u]...)
     #v = hcat([x[ndofs+1:end] for x in sol.u]...)
+    sol = analysis.properties.sol
+
+
+    dim = 3
+    nnodes = 54
+    ndofs = dim * nnodes
+
+    u = hcat([x[1:ndofs] for x in sol.u]...)
+    v = hcat([x[ndofs+1:end] for x in sol.u]...)
+
+    tspan = analysis.properties.tspan
+    t0, t1 = tspan
+    nsteps = length(sol.u)
+    println("Number of time steps = $nsteps")
+    t = linspace(t0, t1, nsteps)
+
+    for (time, x) in zip(t, sol.u)
+        u = x[1:ndofs]
+        v = x[ndofs+1:end]
+        ur = reshape(u, dim, nnodes)
+        vr = reshape(v, dim, nnodes)
+        ud = Dict(j => ur[:,j] for j=1:nnodes)
+        vd = Dict(j => vr[:,j] for j=1:nnodes)
+        for problem in get_problems(analysis)
+            for elements in get_elements(problem)
+                update!(elements, "displacement", time => ud)
+                update!(elements, "velocity", time => vd)
+            end
+        end
+    end
+
+    for time in linspace(t0, t1, 600)
+        JuliaFEM.write_results!(analysis, time)
+    end
+
+    # close(xdmf.hdf) # src
+
 end
 
 export LinearImplicit
