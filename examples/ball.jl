@@ -88,50 +88,52 @@ add_results_writer!(analysis, xdmf)
 # Start analysis.
 
 run!(analysis)
-close(xdmf.hdf) # src
 
 # Analysis ready
 
-sol = analysis.properties.sol
+# sol = analysis.properties.sol
+#
+# dim = 3
+# nnodes = length(mesh.nodes)
+# ndofs = dim * nnodes
+#
+# u = hcat([x[1:ndofs] for x in sol.u]...)
+# v = hcat([x[ndofs+1:end] for x in sol.u]...)
+#
+# tspan = analysis.properties.tspan
+# t0, t1 = tspan
+# nsteps = length(sol.u)
+# println("Number of time steps = $nsteps")
+# t = linspace(t0, t1, nsteps)
+#
+# for (time, x) in zip(t, sol.u)
+#     u = x[1:ndofs]
+#     v = x[ndofs+1:end]
+#     ur = reshape(u, dim, nnodes)
+#     vr = reshape(v, dim, nnodes)
+#     ud = Dict(j => ur[:,j] for j=1:nnodes)
+#     vd = Dict(j => vr[:,j] for j=1:nnodes)
+#     update!(ball_elements, "displacement", time => ud)
+#     update!(ball_elements, "velocity", time => vd)
+# end
 
-dim = 3
-nnodes = length(mesh.nodes)
-ndofs = dim * nnodes
+# nid2 = find_nearest_node(mesh, [0.0, 0.0, 0.0])
 
-u = hcat([x[1:ndofs] for x in sol.u]...)
-v = hcat([x[ndofs+1:end] for x in sol.u]...)
+# ball("displacement", 0.0)
+# trajectory = [ball("displacement", time)[nid2] for time in t]
+# traj_x = [t[1] for t in trajectory]
+# traj_y = [t[2] for t in trajectory]
+# traj_z = [t[3] for t in trajectory]
+# xmin, xmax = minimum(traj_x), maximum(traj_x)
+# ymin, ymax = minimum(traj_y), maximum(traj_y)
+# zmin, zmax = minimum(traj_z), maximum(traj_z)
+# println("bounding box x = ($xmin, $xmax)")
+# println("bounding box y = ($ymin, $ymax)")
+# println("bounding box z = ($zmin, $zmax)")
+#
+# for time in linspace(0.0, 10.0, 600)
+#     JuliaFEM.write_results!(analysis, time)
+# end
+close(xdmf.hdf) # src
 
-tspan = analysis.properties.tspan
-t0, t1 = tspan
-nsteps = length(sol.u)
-println("Number of time steps = $nsteps")
-t = linspace(t0, t1, nsteps)
-
-for (time, x) in zip(t, sol.u)
-    u = x[1:ndofs]
-    v = x[ndofs+1:end]
-    ur = reshape(u, dim, nnodes)
-    vr = reshape(v, dim, nnodes)
-    ud = Dict(j => ur[:,j] for j=1:nnodes)
-    vd = Dict(j => vr[:,j] for j=1:nnodes)
-    update!(ball_elements, "displacement", time => ud)
-    update!(ball_elements, "velocity", time => vd)
-end
-
-nid2 = find_nearest_node(mesh, [0.0, 0.0, 0.0])
-
-ball("displacement", 0.0)
-trajectory = [ball("displacement", time)[nid2] for time in t]
-traj_x = [t[1] for t in trajectory]
-traj_y = [t[2] for t in trajectory]
-traj_z = [t[3] for t in trajectory]
-xmin, xmax = minimum(traj_x), maximum(traj_x)
-ymin, ymax = minimum(traj_y), maximum(traj_y)
-zmin, zmax = minimum(traj_z), maximum(traj_z)
-println("bounding box x = ($xmin, $xmax)")
-println("bounding box y = ($ymin, $ymax)")
-println("bounding box z = ($zmin, $zmax)")
-
-for time in linspace(t0, t1, 600)
-    JuliaFEM.write_results!(analysis, time)
-end
+#
