@@ -63,23 +63,30 @@ function get_global_matrices(analysis::Analysis{LinearImplicit})
     K = sparse(K, dim, dim) + sparse(Kg, dim, dim)
     f = sparse(f, dim, 1) + sparse(fg, dim, 1)
 
-    for problem in get_problems(analysis)
-        is_boundary_problem(problem) || continue
-        eliminate_boundary_conditions!(problem, K, M, f)
-    end
-
-    K = 1/2*(K + K')
-    M = 1/2*(M + M')
-    p.K = dropzeros(K)
-    p.M = dropzeros(M)
+    p.K = 1/2*(K + K')
+    p.M = 1/2*(M + M')
     p.f = f
     return p.K, p.M, p.f
 end
 
 function FEMBase.run!(analysis::Analysis{LinearImplicit})
 
+    # Preprocess: create global matrices, eliminate boundary conditions, remove
+    # any nonzero rows and factorize
+
     K, M, f = get_global_matrices(analysis)
     ndofs = size(K, 1)
+    full_vec = zeros(ndofs) # for temporary operations
+    dim = get_unknown_field_dimension(first(get_problems(analysis)))
+    nnodes = Int(ndofs/dim)
+
+    for problem in get_problems(analysis)
+        is_boundary_problem(problem) || continue
+        eliminate_boundary_conditions!(problem, K, M, f)
+    end
+    dropzeros!(K)
+    dropzeros!(M)
+
     if isempty(analysis.properties.u0)
         analysis.properties.u0 = spzeros(ndofs)
     end
@@ -96,6 +103,9 @@ function FEMBase.run!(analysis::Analysis{LinearImplicit})
     u0 = u0[nz]
     v0 = v0[nz]
     M_fact = cholfact(M)
+    ndofs = size(K, 1)
+
+    # Solution
 
     function model(dx, x, p, t)
         info("Solving at time $t")
@@ -106,25 +116,26 @@ function FEMBase.run!(analysis::Analysis{LinearImplicit})
         dx[ndofs+1:end] = M_fact \ full(f - K*u)
     end
 
-    ndofs = size(K, 1)
     x0 = [u0; v0]
     prob = ODEProblem(model, x0, analysis.properties.tspan)
     sol = analysis.properties.sol = solve(prob)
 
+    # postprocess, update displacement and velocity back to elements
+
     # FIXME: support for variable number of dofs / node
-    dim = get_unknown_field_dimension(first(get_problems(analysis)))
-    nnodes = Int(ndofs/dim)
-
-    info("Number of time steps = ", length(sol))
-
     function to_dict(u, dim, nnodes)
         return Dict(j => [u[dim*(j-1)+k] for k=1:dim] for j=1:nnodes)
     end
 
+    info("Number of nodes = $nnodes, number of time steps = $(length(sol))")
+
     for (time, x) in zip(sol.t, sol.u)
-        u = to_dict(x[1:ndofs], dim, nnodes)
-        v = to_dict(x[ndofs+1:end], dim, nnodes)
+        full_vec[nz] = x[1:ndofs]
+        u = to_dict(full_vec, dim, nnodes)
+        full_vec[nz] = x[ndofs+1:end]
+        v = to_dict(full_vec, dim, nnodes)
         for problem in get_problems(analysis)
+            is_field_problem(problem) || continue
             for elements in get_elements(problem)
                 update!(elements, "displacement", time => u)
                 update!(elements, "velocity", time => v)
