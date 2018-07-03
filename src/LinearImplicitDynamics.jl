@@ -4,9 +4,9 @@
 """ Linear, implicit dynamics solver for JuliaFEM. """
 module LinearImplicitDynamics
 
-using FEMBase
+using Reexport
+@reexport using FEMBase
 using DifferentialEquations
-using JuliaFEM
 
 type LinearImplicit <: AbstractAnalysis
     tspan :: Tuple{Float64,Float64}
@@ -22,7 +22,10 @@ function FEMBase.run!(analysis::Analysis{LinearImplicit})
 
     time = analysis.properties.tspan[1]
 
-    assemble!(analysis, time; with_mass_matrix=true)
+    for problem in get_problems(analysis)
+        assemble!(problem, time)
+        assemble_mass_matrix!(problem, time)
+    end
 
     M = SparseMatrixCOO()
     K = SparseMatrixCOO()
@@ -52,20 +55,19 @@ function FEMBase.run!(analysis::Analysis{LinearImplicit})
 
     K = 1/2*(K + K')
     M = 1/2*(M + M')
-    SparseArrays.droptol!(K, 1.0e-9)
-    SparseArrays.droptol!(M, 1.0e-9)
+    dropzeros!(K)
+    dropzeros!(M)
     nz = get_nonzero_rows(K)
     K_red = K[nz,nz]
     M_red = M[nz,nz]
     cfM = cholfact(M_red)
+    display(full(K_red))
+    display(full(M_red))
 
     function model(dx, x, p, t)
         ndofs = round(Int, length(dx)/2)
         u = x[1:ndofs]
-        ux = round(mean(u[1:3:end]), 2)
-        uy = round(mean(u[2:3:end]), 2)
-        uz = round(mean(u[3:3:end]), 2)
-        println("$t: coords = ($ux, $uy, $uz)")
+        println("Solving at time $t")
         v = x[ndofs+1:end]
         dx[1:ndofs] = x[ndofs+1:end]
         dx[ndofs+1:end] = cfM \ (f - K_red*u)
@@ -74,52 +76,36 @@ function FEMBase.run!(analysis::Analysis{LinearImplicit})
     ndofs = size(K_red, 1)
     u0 = zeros(ndofs)
     v0 = zeros(ndofs)
-    v0[1:3:end] += 20.0
-    v0[2:3:end] += 10.0
     x0 = [u0; v0]
-    tspan = analysis.properties.tspan
-    prob = ODEProblem(model, x0, tspan)
-    analysis.properties.sol = solve(prob; dtmax=0.1)
-    #u = hcat([x[1:ndofs] for x in sol.u]...)
-    #v = hcat([x[ndofs+1:end] for x in sol.u]...)
-    sol = analysis.properties.sol
+    prob = ODEProblem(model, x0, analysis.properties.tspan)
+    sol = analysis.properties.sol = solve(prob)
 
+    # FIXME: support for variable number of dofs / node
+    dim = get_unknown_field_dimension(first(get_problems(analysis)))
+    nnodes = Int(ndofs/dim)
 
-    dim = 3
-    nnodes = 54
-    ndofs = dim * nnodes
+    info("Number of time steps = ", length(sol))
 
-    u = hcat([x[1:ndofs] for x in sol.u]...)
-    v = hcat([x[ndofs+1:end] for x in sol.u]...)
+    function to_dict(u, dim, nnodes)
+        return Dict(j => [u[dim*(j-1)+k] for k=1:dim] for j=1:nnodes)
+    end
 
-    tspan = analysis.properties.tspan
-    t0, t1 = tspan
-    nsteps = length(sol.u)
-    println("Number of time steps = $nsteps")
-    t = linspace(t0, t1, nsteps)
-
-    for (time, x) in zip(t, sol.u)
-        u = x[1:ndofs]
-        v = x[ndofs+1:end]
-        ur = reshape(u, dim, nnodes)
-        vr = reshape(v, dim, nnodes)
-        ud = Dict(j => ur[:,j] for j=1:nnodes)
-        vd = Dict(j => vr[:,j] for j=1:nnodes)
+    for (time, x) in zip(sol.t, sol.u)
+        u = to_dict(x[1:ndofs], dim, nnodes)
+        v = to_dict(x[ndofs+1:end], dim, nnodes)
         for problem in get_problems(analysis)
             for elements in get_elements(problem)
-                update!(elements, "displacement", time => ud)
-                update!(elements, "velocity", time => vd)
+                update!(elements, "displacement", time => u)
+                update!(elements, "velocity", time => v)
             end
         end
     end
 
-    for time in linspace(t0, t1, 600)
-        JuliaFEM.write_results!(analysis, time)
-    end
-
-    # close(xdmf.hdf) # src
-
 end
+
+# function FEMBase.write_results!(analysis::LinearImplicitDynamics, writer::Xdmf)
+#     # Not implemented yet
+# end
 
 export LinearImplicit
 
