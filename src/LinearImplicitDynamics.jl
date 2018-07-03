@@ -11,20 +11,35 @@ using DifferentialEquations
 type LinearImplicit <: AbstractAnalysis
     tspan :: Tuple{Float64,Float64}
     sol
+    K :: SparseMatrixCSC{Float64}
+    M :: SparseMatrixCSC{Float64}
+    f :: SparseVector{Float64}
+    u0 :: SparseVector{Float64}
+    v0 :: SparseVector{Float64}
 end
 
 function LinearImplicit()
     tspan = (0.0, 1.0)
-    return LinearImplicit(tspan, nothing)
+    return LinearImplicit(tspan, nothing, spzeros(0,0), spzeros(0,0),
+                          spzeros(0), spzeros(0), spzeros(0))
 end
 
-function FEMBase.run!(analysis::Analysis{LinearImplicit})
+"""
+    get_global_matrices(analysis)
 
-    time = analysis.properties.tspan[1]
+Assemble global matrices for problem.
+"""
+function get_global_matrices(analysis::Analysis{LinearImplicit})
+    p = analysis.properties
+    if !isempty(p.K) && !isempty(p.M)
+        return p.K, p.M, p.f
+    end
+
+    time = first(analysis.properties.tspan)
 
     for problem in get_problems(analysis)
         assemble!(problem, time)
-        assemble_mass_matrix!(problem, time)
+        is_field_problem(problem) && assemble_mass_matrix!(problem, time)
     end
 
     M = SparseMatrixCOO()
@@ -55,27 +70,43 @@ function FEMBase.run!(analysis::Analysis{LinearImplicit})
 
     K = 1/2*(K + K')
     M = 1/2*(M + M')
-    dropzeros!(K)
-    dropzeros!(M)
+    p.K = dropzeros(K)
+    p.M = dropzeros(M)
+    p.f = f
+    return p.K, p.M, p.f
+end
+
+function FEMBase.run!(analysis::Analysis{LinearImplicit})
+
+    K, M, f = get_global_matrices(analysis)
+    ndofs = size(K, 1)
+    if isempty(analysis.properties.u0)
+        analysis.properties.u0 = spzeros(ndofs)
+    end
+    if isempty(analysis.properties.v0)
+        analysis.properties.v0 = spzeros(ndofs)
+    end
+    u0 = analysis.properties.u0
+    v0 = analysis.properties.v0
+
     nz = get_nonzero_rows(K)
-    K_red = K[nz,nz]
-    M_red = M[nz,nz]
-    cfM = cholfact(M_red)
-    display(full(K_red))
-    display(full(M_red))
+    K = K[nz,nz]
+    M = M[nz,nz]
+    f = f[nz]
+    u0 = u0[nz]
+    v0 = v0[nz]
+    M_fact = cholfact(M)
 
     function model(dx, x, p, t)
+        info("Solving at time $t")
         ndofs = round(Int, length(dx)/2)
         u = x[1:ndofs]
-        println("Solving at time $t")
         v = x[ndofs+1:end]
-        dx[1:ndofs] = x[ndofs+1:end]
-        dx[ndofs+1:end] = cfM \ (f - K_red*u)
+        dx[1:ndofs] = v
+        dx[ndofs+1:end] = M_fact \ full(f - K*u)
     end
 
-    ndofs = size(K_red, 1)
-    u0 = zeros(ndofs)
-    v0 = zeros(ndofs)
+    ndofs = size(K, 1)
     x0 = [u0; v0]
     prob = ODEProblem(model, x0, analysis.properties.tspan)
     sol = analysis.properties.sol = solve(prob)
