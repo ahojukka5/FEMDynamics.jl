@@ -8,7 +8,7 @@ using Reexport
 @reexport using FEMBase
 using DifferentialEquations
 
-type LinearImplicit <: AbstractAnalysis
+mutable struct LinearImplicit <: AbstractAnalysis
     tspan :: Tuple{Float64,Float64}
     sol
     K :: SparseMatrixCSC{Float64}
