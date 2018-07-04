@@ -1,8 +1,8 @@
 # This file is a part of JuliaFEM.
-# License is MIT: see https://github.com/JuliaFEM/LinearImplicitDynamics.jl/blob/master/LICENSE
+# License is MIT: see https://github.com/JuliaFEM/FEMDynamics.jl/blob/master/LICENSE
 
-""" Linear, implicit dynamics solver for JuliaFEM. """
-module LinearImplicitDynamics
+""" Dynamics solver for JuliaFEM. """
+module FEMDynamics
 
 using Reexport
 @reexport using FEMBase
@@ -145,7 +145,7 @@ function FEMBase.run!(analysis::Analysis{LinearImplicit})
 
 end
 
-# function FEMBase.write_results!(analysis::LinearImplicitDynamics, writer::Xdmf)
+# function FEMBase.write_results!(analysis::ImplicitDynamics, writer::Xdmf)
 #     # Not implemented yet
 # end
 

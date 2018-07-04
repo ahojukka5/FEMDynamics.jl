@@ -1,5 +1,5 @@
 # This file is a part of JuliaFEM.
-# License is MIT: see https://github.com/JuliaFEM/LinearImplicitDynamics.jl/blob/master/LICENSE
+# License is MIT: see https://github.com/JuliaFEM/FEMDynamics.jl/blob/master/LICENSE
 
 using JuliaFEM
 using JuliaFEM.Preprocess
@@ -7,11 +7,11 @@ using JuliaFEM.Postprocess
 using Logging
 Logging.configure(level=INFO)
 add_elements! = JuliaFEM.add_elements!
-using LinearImplicitDynamics
+using FEMDynamics
 
 # Model construction starts
 
-datadir = Pkg.dir("LinearImplicitDynamics", "examples", "ball")
+datadir = Pkg.dir("FEMDynamics", "examples", "ball")
 meshfile = joinpath(datadir, "ball.med")
 mesh = aster_read_mesh(meshfile)
 mesh.element_sets[:BALL] = bset = Set{Int64}()

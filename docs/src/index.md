@@ -1,18 +1,10 @@
 # Introduction
 
-Package contains solver for linear implicit dynamics problems.
-
-# Theory
-
-Theory of time integration formulations comes here.
-
-# Examples
+Package contains dynamics solver for JuliaFEM.
 
 ```@meta
 DocTestSetup = quote
     using FEMBase
-    using LinearImplicitDynamics
+    using FEMDynamics
 end
 ```
-
-Simple calculation examples here.
